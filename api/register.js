@@ -14,6 +14,7 @@ module.exports = async function handler(req, res) {
       action: 'incoming_visitor',
       url: 'https://lc-tracker-mauve.vercel.app/api/visitor',
       secret_key: 'kalitebet123',
+      owner_client_id: 'kalitebet',
       description: 'Visitor tracker'
     })
   })
