@@ -15,22 +15,24 @@ module.exports = async function handler(req, res) {
 
     let visitorCount = 0
 
-    try {
-      const lcRes = await fetch('https://api.livechatinc.com/v3.5/agent/action/list_chats', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Basic ${credentials}`,
-          'Content-Type': 'application/json',
-          'X-Region': 'us-south1'
-        },
-        body: JSON.stringify({ filters: { chat_properties: {} } })
+    const lcRes = await fetch('https://api.livechatinc.com/v3.5/agent/action/list_chats', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${credentials}`,
+        'Content-Type': 'application/json',
+        'X-Region': 'us-south1'
+      },
+      body: JSON.stringify({
+        filters: { active: true }
       })
-      const lcData = await lcRes.json()
-      if (lcData && lcData.chats_summary) {
-        visitorCount = lcData.total_chats || lcData.chats_summary.length || 0
-      }
-    } catch(e) {
-      visitorCount = 0
+    })
+
+    const lcData = await lcRes.json()
+    
+    if (lcData && lcData.total_chats !== undefined) {
+      visitorCount = lcData.total_chats
+    } else if (lcData && lcData.chats_summary) {
+      visitorCount = lcData.chats_summary.length
     }
 
     const now = new Date()
