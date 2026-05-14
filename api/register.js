@@ -10,7 +10,8 @@ module.exports = async function handler(req, res) {
       'Content-Type': 'application/json',
       'X-Region': 'us-south1'
     },
-    body: JSON.stringify({
+   body: JSON.stringify({
+      type: 'license',
       action: 'incoming_visitor',
       url: 'https://lc-tracker-mauve.vercel.app/api/visitor',
       secret_key: 'kalitebet123',
