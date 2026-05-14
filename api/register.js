@@ -13,6 +13,7 @@ module.exports = async function handler(req, res) {
     body: JSON.stringify({
       action: 'incoming_visitor',
       url: 'https://lc-tracker-mauve.vercel.app/api/visitor',
+      secret_key: 'kalitebet123',
       description: 'Visitor tracker'
     })
   })
