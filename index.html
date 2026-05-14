@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LiveChat Visitor Takibi</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f0f0f;color:#e0e0e0;min-height:100vh;padding:2rem}
+h1{font-size:20px;font-weight:500;margin-bottom:.25rem}
+.sub{font-size:13px;color:#666;margin-bottom:2rem}
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:2rem}
+.metric{background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;padding:1rem}
+.metric-label{font-size:12px;color:#666;margin-bottom:6px}
+.metric-value{font-size:28px;font-weight:500}
+.metric-sub{font-size:12px;color:#555;margin-top:4px}
+.alert{padding:12px 16px;border-radius:8px;margin-bottom:1rem;font-size:14px}
+.alert-ok{background:#052e16;border:1px solid #166534;color:#4ade80}
+.alert-warn{background:#1c1917;border:1px solid #92400e;color:#fb923c}
+.alert-danger{background:#1a0000;border:1px solid #7f1d1d;color:#f87171}
+.card{background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;padding:1.25rem;margin-bottom:1.5rem}
+.card-title{font-size:12px;color:#666;text-transform:uppercase;letter-spacing:.05em;margin-bottom:1rem}
+.chart-wrap{position:relative;height:280px}
+.thr-row{display:flex;align-items:center;gap:12px;font-size:13px;color:#888}
+.thr-row input{flex:1;accent-color:#4ade80}
+.thr-val{font-weight:500;color:#e0e0e0;min-width:36px}
+.header-row{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:2rem}
+#badge{font-size:12px;padding:4px 12px;border-radius:999px;font-weight:500;background:#052e16;color:#4ade80;border:1px solid #166534}
+</style>
+</head>
+<body>
+<div class="header-row">
+  <div>
+    <h1>LiveChat Visitor Takibi</h1>
+    <div class="sub" id="sub">Veri yükleniyor...</div>
+  </div>
+  <span id="badge">Normal</span>
+</div>
+
+<div class="metrics">
+  <div class="metric">
+    <div class="metric-label">Bu saat ortalaması</div>
+    <div class="metric-value" id="m1">–</div>
+    <div class="metric-sub" id="m1s">–</div>
+  </div>
+  <div class="metric">
+    <div class="metric-label">Genel ortalama</div>
+    <div class="metric-value" id="m2">–</div>
+    <div class="metric-sub">Tüm saatler</div>
+  </div>
+  <div class="metric">
+    <div class="metric-label">En yoğun saat</div>
+    <div class="metric-value" id="m3">–</div>
+    <div class="metric-sub" id="m3s">–</div>
+  </div>
+  <div class="metric">
+    <div class="metric-label">Toplam ölçüm</div>
+    <div class="metric-value" id="m4">–</div>
+    <div class="metric-sub">Veri noktası</div>
+  </div>
+</div>
+
+<div id="alerts"></div>
+
+<div class="card">
+  <div class="card-title">Saatlik visitor ortalaması (son 7 gün)</div>
+  <div class="chart-wrap">
+    <canvas id="chart" role="img" aria-label="Saatlik visitor grafiği">Grafik</canvas>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">Uyarı eşiği</div>
+  <div class="thr-row">
+    <span>Ortalamanın</span>
+    <input type="range" min="40" max="90" value="70" step="5" id="thr" oninput="onThr()">
+    <span class="thr-val" id="thr-lbl">%70</span>
+    <span>altına düşünce uyar</span>
+  </div>
+</div>
+
+<script>
+let thr=0.70,chart=null,avgs={},allData=[]
+
+async function load(){
+  try{
+    const r=await fetch('/api/data')
+    if(!r.ok) throw new Error('HTTP '+r.status)
+    const j=await r.json()
+    allData=j.data||[]
+    avgs=j.averages||{}
+    render()
+    document.getElementById('sub').textContent='Son güncelleme: '+new Date().toLocaleTimeString('tr-TR')
+  }catch(e){
+    document.getElementById('sub').textContent='Hata: '+e.message
+  }
+}
+
+function render(){
+  const h=new Date().getHours()
+  const curAvg=avgs[h]
+  const vals=Object.values(avgs)
+  const globalAvg=vals.length?Math.round(vals.reduce((a,b)=>a+b,0)/vals.length):0
+  let maxH=0,maxV=0
+  Object.entries(avgs).forEach(([k,v])=>{if(v>maxV){maxV=v;maxH=k}})
+
+  document.getElementById('m1').textContent=curAvg!==undefined?curAvg:'–'
+  document.getElementById('m1s').textContent=curAvg!==undefined?(curAvg>=globalAvg*thr?'✓ Normal':'⚠ Düşük'):'Veri yok'
+  document.getElementById('m2').textContent=globalAvg||'–'
+  document.getElementById('m3').textContent=maxV||'–'
+  document.getElementById('m3s').textContent=maxV?maxH+':00 saati':'–'
+  document.getElementById('m4').textContent=allData.length||'–'
+
+  const box=document.getElementById('alerts')
+  box.innerHTML=''
+  const badge=document.getElementById('badge')
+  const thrVal=Math.round(globalAvg*thr)
+
+  if(!vals.length){
+    box.innerHTML='<div class="alert alert-warn">⏳ Henüz veri yok. Sistem veri toplamaya başladı — birkaç saat sonra grafik dolmaya başlar.</div>'
+    badge.textContent='Veri Toplanıyor'
+    badge.style.cssText='font-size:12px;padding:4px 12px;border-radius:999px;font-weight:500;background:#1c1917;color:#fb923c;border:1px solid #92400e'
+  } else if(curAvg!==undefined && curAvg<thrVal){
+    box.innerHTML=`<div class="alert alert-danger">🚨 ${h}:00 saatinde visitor düşük! Şu an: ${curAvg} (eşik: ${thrVal})</div>`
+    badge.textContent='Anomali!'
+    badge.style.cssText='font-size:12px;padding:4px 12px;border-radius:999px;font-weight:500;background:#1a0000;color:#f87171;border:1px solid #7f1d1d'
+  } else {
+    box.innerHTML=`<div class="alert alert-ok">✓ ${h}:00 saati normal${curAvg!==undefined?' — '+curAvg+' visitor':''}</div>`
+    badge.textContent='Normal'
+    badge.style.cssText='font-size:12px;padding:4px 12px;border-radius:999px;font-weight:500;background:#052e16;color:#4ade80;border:1px solid #166534'
+  }
+
+  const labels=Array.from({length:24},(_,i)=>i+':00')
+  const data=labels.map((_,i)=>avgs[i]??null)
+  if(chart) chart.destroy()
+  chart=new Chart(document.getElementById('chart').getContext('2d'),{
+    type:'bar',
+    data:{
+      labels,
+      datasets:[
+        {label:'Visitor',data,backgroundColor:data.map(v=>v&&v<thrVal?'rgba(248,113,113,.7)':'rgba(74,222,128,.7)'),borderRadius:4},
+        {label:'Eşik',data:Array(24).fill(thrVal),type:'line',borderColor:'rgba(248,113,113,.5)',borderDash:[5,3],pointRadius:0,borderWidth:1.5}
+      ]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false}},
+      scales:{
+        x:{grid:{color:'rgba(255,255,255,.05)'},ticks:{font:{size:11},color:'#555',autoSkip:true,maxTicksLimit:12}},
+        y:{grid:{color:'rgba(255,255,255,.05)'},ticks:{font:{size:11},color:'#555'},beginAtZero:true}
+      }
+    }
+  })
+}
+
+function onThr(){
+  thr=parseInt(document.getElementById('thr').value)/100
+  document.getElementById('thr-lbl').textContent='%'+Math.round(thr*100)
+  render()
+}
+
+load()
+setInterval(load,60000)
+</script>
+</body>
+</html>
